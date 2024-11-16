@@ -1,4 +1,5 @@
 ﻿using BondConsoleApp.Models;
+using CS_Console.Model;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.Extensions.Configuration;
@@ -22,45 +23,43 @@ namespace BondConsoleApp.Repository
             _connectionString = configuration.GetConnectionString("DefaultConnection");
         }
 
-        public void ImportDataFromCsv(Stream csvStream)
+        public async Task ImportDataFromCsv(Stream csvStream)
         {
-            var records = ReadCsvFile(csvStream);
+            var records = await ReadCsvFile(csvStream);
 
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
                 using (SqlTransaction transaction = connection.BeginTransaction())
                 {
                     try
                     {
                         foreach (var record in records)
                         {
-                            InsertFullBondData(record, connection, transaction);
+                            await InsertFullBondData(record, connection, transaction);
                         }
 
-                        transaction.Commit();
+                        await transaction.CommitAsync();
                         Console.WriteLine("Data imported successfully.");
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine("Error during import: " + ex.Message);
-                        transaction.Rollback();
+                        await transaction.RollbackAsync();
                         throw;
                     }
                 }
             }
         }
 
-        private List<BondModel> ReadCsvFile(Stream csvStream)
+        private async Task<List<BondModel>> ReadCsvFile(Stream csvStream)
         {
-            using (var reader = new StreamReader(csvStream))
-            using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
-            {
-                return csv.GetRecords<BondModel>().ToList();
-            }
+            using var reader = new StreamReader(csvStream);
+            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            return await Task.Run(() => csv.GetRecords<BondModel>().ToList());
         }
 
-        private void InsertFullBondData(BondModel data, SqlConnection connection, SqlTransaction transaction)
+        private async Task InsertFullBondData(BondModel data, SqlConnection connection, SqlTransaction transaction)
         {
             using (SqlCommand command = new SqlCommand("Corporate_Bond.sp_InsertFullBondData", connection, transaction))
             {
@@ -146,17 +145,17 @@ namespace BondConsoleApp.Repository
                 command.Parameters.AddWithValue("@call_date", data.CallDate ?? (object)DBNull.Value);
                 command.Parameters.AddWithValue("@call_price", data.CallPrice ?? (object)DBNull.Value);
 
-                command.ExecuteNonQuery();
+                await command.ExecuteNonQueryAsync();
             }
         }
 
 
 
-        public void UpdateBondData(EditBondModel ebm)
+        public async Task<string> UpdateBondData(EditBondModel ebm)
         {
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 using (SqlCommand command = new SqlCommand("Corporate_Bond.sp_UpdateBondData", connection))
                 {
@@ -165,32 +164,32 @@ namespace BondConsoleApp.Repository
                     // Set up parameters with values
                     command.Parameters.AddWithValue("@security_id", ebm.SecurityID);
                     command.Parameters.AddWithValue("@security_description", ebm.SecurityDescription ?? (object)DBNull.Value);
-                    command.Parameters.AddWithValue("@coupon", ebm.Coupon);
-                    command.Parameters.AddWithValue("@is_callable", ebm.IsCallable);
-                    command.Parameters.AddWithValue("@penultimate_coupon_date", ebm.PenultimateCouponDate);
+                    command.Parameters.AddWithValue("@coupon", ebm.Coupon ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@iscallable", ebm.IsCallable ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@penultimate_coupon_date", ebm.PenultimateCouponDate ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@pf_credit_rating", ebm.FormPFCreditRating ?? (object)DBNull.Value);
-                    command.Parameters.AddWithValue("@ask_price", ebm.AskPrice);
-                    command.Parameters.AddWithValue("@bid_price", ebm.BidPrice);
+                    command.Parameters.AddWithValue("@ask_price", ebm.AskPrice ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@bid_price", ebm.BidPrice ?? (object)DBNull.Value);
 
                     try
                     {
-                        command.ExecuteNonQuery();
-                        Console.WriteLine("Bond data updated successfully.");
+                        await command.ExecuteNonQueryAsync();
+                        return $"Updated Bond with Id - {ebm.SecurityID}";
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine("An error occurred while updating bond data: " + ex.Message);
+                        return "An error occurred while updating bond data: " + ex.Message;
                     }
                 }
             }
 
         }
 
-        public void DeleteBondData(int SecurityID)
+        public async Task<string> DeleteBondData(int SecurityID)
         {
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
                 using (SqlCommand command = new SqlCommand("Corporate_Bond.DeleteSecurity", connection))
                 {
                     command.CommandType = CommandType.StoredProcedure;
@@ -199,24 +198,24 @@ namespace BondConsoleApp.Repository
 
                     try
                     {
-                        command.ExecuteNonQuery();
-                        Console.WriteLine("Record successfully marked as inactive.");
+                        await command.ExecuteNonQueryAsync();
+                        return $"Bond with Id - {SecurityID} marked as inactive";
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error: {ex.Message}");
+                        return $"Error: {ex.Message}";
                     }
                 }
             }
         }
 
-        public List<EditBondModel> GetBondsData()
+        public async Task<List<EditBondModel>> GetBondsData()
         {
             var bonds = new List<EditBondModel>();
 
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
                 using (SqlCommand command = new SqlCommand("Corporate_Bond.sp_GetEditBondData", connection))
                 {
                     command.CommandType = CommandType.StoredProcedure;
@@ -234,7 +233,12 @@ namespace BondConsoleApp.Repository
                                     SecurityName = reader["SecurityName"].ToString(),
                                     MaturityDate = reader["MaturityDate"] as DateTime?,
                                     AskPrice = Convert.ToDecimal(reader["AskPrice"]),
-                                    IsActive = Convert.ToBoolean(reader["IsActive"])
+                                    IsActive = Convert.ToBoolean(reader["IsActive"]),
+                                    BidPrice = Convert.ToDecimal(reader["BidPrice"]),
+                                    Coupon = Convert.ToDecimal(reader["Coupon"]),
+                                    IsCallable = Convert.ToBoolean(reader["IsCallable"]),
+                                    FormPFCreditRating = reader["FormPFCreditRating"].ToString(),
+                                    PenultimateCouponDate = reader["PenultimateCouponDate"] as DateTime?,
                                 };
 
                                 bonds.Add(bond);

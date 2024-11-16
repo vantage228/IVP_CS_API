@@ -9,12 +9,12 @@ namespace BondConsoleApp.Repository
 {
     public interface IBond
     {
-        public void ImportDataFromCsv(Stream csvstream);
+        public Task ImportDataFromCsv(Stream csvstream);
 
-        public void UpdateBondData(EditBondModel ebm);
+        public Task<string> UpdateBondData(EditBondModel ebm);
 
-        public void DeleteBondData(int SecurityID);
+        public Task<string> DeleteBondData(int SecurityID);
 
-        public List<EditBondModel> GetBondsData();
+        public Task<List<EditBondModel>> GetBondsData();
     }
 }

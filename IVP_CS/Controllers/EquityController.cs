@@ -2,6 +2,7 @@
 using CS_Console.EquityRepo;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Data.Common;
 
 namespace IVP_CS.Controllers
 {
@@ -18,51 +19,95 @@ namespace IVP_CS.Controllers
         [HttpGet]
         public IActionResult GetData()
         {
-            List<EditEquityModel> result = _security.GetSecurityData();
-            return Ok(result);
+            try
+            {
+                List<EditEquityModel> result = _security.GetSecurityData();
+                return Ok(result);
+            }
+            catch(DbException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, $"DB ERROR: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, $"Error Retrieving Equities: {ex.Message}");
+            }
         }
 
         [HttpPost("upload")]
-        public IActionResult PostData(IFormFile file)
+        public async Task<IActionResult> PostData(IFormFile file)
         {
-            if (file == null || file.Length == 0)
+            try
             {
-                return BadRequest("No file uploaded.");
+                if (file == null || file.Length == 0)
+                {
+                    return BadRequest("No file uploaded.");
+                }
+
+                // Set the directory where the file will be saved
+                var uploadsFolderPath = Path.Combine(Directory.GetCurrentDirectory(), "UploadedFiles");
+
+                // Ensure the directory exists
+                if (!Directory.Exists(uploadsFolderPath))
+                {
+                    Directory.CreateDirectory(uploadsFolderPath);
+                }
+
+                var uniqueFileName = $"{Guid.NewGuid()}_{file.FileName}";
+                var filePath = Path.Combine(uploadsFolderPath, uniqueFileName);
+
+                using (var fileStream = new FileStream(filePath, FileMode.Create))
+                {
+                    await file.CopyToAsync(fileStream);
+                }
+
+                await _security.ImportDataFromCsv(filePath);
+                return Ok();
             }
-
-            // Set the directory where the file will be saved
-            var uploadsFolderPath = Path.Combine(Directory.GetCurrentDirectory(), "UploadedFiles");
-
-            // Ensure the directory exists
-            if (!Directory.Exists(uploadsFolderPath))
+            catch (DbException ex)
             {
-                Directory.CreateDirectory(uploadsFolderPath);
+                return StatusCode(StatusCodes.Status500InternalServerError, $"DB ERROR: {ex.Message}");
             }
-
-            var uniqueFileName = $"{Guid.NewGuid()}_{file.FileName}";
-            var filePath = Path.Combine(uploadsFolderPath, uniqueFileName);
-
-            using (var fileStream = new FileStream(filePath, FileMode.Create))
+            catch (Exception ex)
             {
-                file.CopyTo(fileStream);
-            }       
-
-            _security.ImportDataFromCsv(filePath);
-            return Ok();
+                return StatusCode(StatusCodes.Status500InternalServerError, $"Error Uploading Equities: {ex.Message}");
+            }
         }
 
         [HttpPut("edit")]
-        public IActionResult PutData([FromBody] EditEquityModel esm)
+        public async Task<IActionResult> PutData([FromBody] EditEquityModel esm)
         {
-            _security.UpdateSecurityData(esm);
-            return Ok();
+            try
+            {
+                await _security.UpdateSecurityData(esm);
+                return Ok();
+            }
+            catch (DbException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, $"DB ERROR: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, $"Error Updating Equities: {ex.Message}");
+            }
         }
 
         [HttpDelete("{id}")]
-        public IActionResult DeleteData([FromRoute] int id)
+        public async Task<IActionResult> DeleteData([FromRoute] int id)
         {
-            _security?.DeleteSecurityData(id);
-            return Ok();
+            try
+            {
+                await _security?.DeleteSecurityData(id);
+                return Ok();
+            }
+            catch (DbException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, $"DB ERROR: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, $"Error Retrieving Equities: {ex.Message}");
+            }
         }
     }
 }

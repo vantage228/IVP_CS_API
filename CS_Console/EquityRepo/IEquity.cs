@@ -9,11 +9,11 @@ namespace CS_Console.EquityRepo
 {
     public interface IEquity
     {
-        public void ImportDataFromCsv(string filePath);
+        public Task ImportDataFromCsv(string filePath);
 
-        public string UpdateSecurityData(EditEquityModel esm);
+        public Task<string> UpdateSecurityData(EditEquityModel esm);
 
-        public void DeleteSecurityData(int securityId);
+        public Task<string> DeleteSecurityData(int securityId);
 
         public List<EditEquityModel> GetSecurityData();
     }

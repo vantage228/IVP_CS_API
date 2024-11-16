@@ -1,6 +1,7 @@
 
 using BondConsoleApp.Repository;
 using CS_Console.EquityRepo;
+using CS_Console.LogRepo;
 
 namespace IVP_CS
 {
@@ -16,6 +17,7 @@ namespace IVP_CS
 
             builder.Services.AddTransient<IEquity, EquityOperation>();
             builder.Services.AddTransient<IBond, BondOperations>();
+            builder.Services.AddTransient<ILog, LogOperation>();    
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();

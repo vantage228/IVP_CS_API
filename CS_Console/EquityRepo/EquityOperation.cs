@@ -12,6 +12,7 @@ using CsvHelper;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using System.Transactions;
 using Microsoft.Extensions.Configuration;
+using BondConsoleApp.Models;
 
 namespace CS_Console.EquityRepo
 {
@@ -26,48 +27,40 @@ namespace CS_Console.EquityRepo
 
         public EquityOperation() { }
 
-        public void ImportDataFromCsv(string filePath)
+        public async Task ImportDataFromCsv(string filePath)
         {
-            var records = ReadCsvFile(filePath);
+            var records = await ReadCsvFile(filePath);
 
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
                 using (SqlTransaction transaction = connection.BeginTransaction())
                 {
                     try
                     {
                         foreach (var record in records)
                         {
-                            InsertFullSecurityData(record, connection, transaction);
-                        }
-
-                        // Commit the transaction if all inserts are successful
-                        transaction.Commit();
+                            await InsertFullSecurityData(record, connection, transaction);
+                        }                       
+                        await transaction.CommitAsync();
                     }
                     catch (Exception ex)
                     {
-                        // Rollback the transaction if any insert fails
                         Console.WriteLine("Error during import: " + ex.Message);
-                        transaction.Rollback();
+                        await transaction.RollbackAsync();
                     }
                 }
             }
         }
 
-        private List<EquityDataModel> ReadCsvFile(string filePath)
+        private async Task<List<EquityDataModel>> ReadCsvFile(string filePath)
         {
-            var records = new List<EquityDataModel>();
-
-            using (var reader = new StreamReader(filePath))
-            using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
-            {
-                records = csv.GetRecords<EquityDataModel>().ToList();
-            }
-            return records;
+            using var reader = new StreamReader(filePath);
+            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            return await Task.Run(() => csv.GetRecords<EquityDataModel>().ToList());
         }
 
-        private void InsertFullSecurityData(EquityDataModel data, SqlConnection connection, SqlTransaction transaction)
+        private async Task InsertFullSecurityData(EquityDataModel data, SqlConnection connection, SqlTransaction transaction)
         {
             using (SqlCommand command = new SqlCommand("Corporate_Equity.sp_InsertFullSecurityData", connection))
             {
@@ -152,16 +145,16 @@ namespace CS_Console.EquityRepo
                 command.Parameters.AddWithValue("@frequency", data.Frequency ?? (object)DBNull.Value);
                 command.Parameters.AddWithValue("@dividend_type", data.DividendType);
 
-                command.ExecuteNonQuery();
+                await command.ExecuteNonQueryAsync();
 
             }   
         }
 
-        public string UpdateSecurityData(EditEquityModel esm)
+        public async Task<string> UpdateSecurityData(EditEquityModel esm)
         {
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 using (SqlCommand command = new SqlCommand("Corporate_Equity.sp_UpdateSecurityData", connection))
                 {
@@ -174,12 +167,12 @@ namespace CS_Console.EquityRepo
                     command.Parameters.AddWithValue("@total_shares_outstanding", esm.totalSharesOutstanding);
                     command.Parameters.AddWithValue("@open_price", esm.openPrice);
                     command.Parameters.AddWithValue("@close_price", esm.closePrice);
-                    command.Parameters.AddWithValue("@dividend_declared_date", (object)esm.dividendDeclaredDate ?? DBNull.Value);
+                    command.Parameters.AddWithValue("@dividend_declared_date", esm.dividendDeclaredDate ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@Pf_credit_rating", esm.pfCreditRating ?? (object)DBNull.Value);
 
                     try
                     {
-                        command.ExecuteNonQuery();
+                        await command.ExecuteNonQueryAsync();
                         return "Updated Data";
                     }
                     catch (Exception ex)
@@ -190,25 +183,25 @@ namespace CS_Console.EquityRepo
             }
         }
 
-        public void DeleteSecurityData(int securityId)
+        public async Task<string> DeleteSecurityData(int securityId)
         {
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
                 using (SqlCommand command = new SqlCommand("Corporate_Equity.sp_DeleteSecurityData", connection))
                 {
                     command.CommandType = CommandType.StoredProcedure;
-
+    
                     command.Parameters.AddWithValue("@security_id", securityId);
 
                     try
                     {
-                        command.ExecuteNonQuery();
-                        Console.WriteLine("Record successfully marked as inactive.");
+                        await command.ExecuteNonQueryAsync();
+                        return $"Equity with Id - {securityId} marked as inactive";
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error: {ex.Message}");
+                        return $"Error: {ex.Message}";
                     }
                 }
             }

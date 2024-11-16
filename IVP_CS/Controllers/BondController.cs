@@ -48,27 +48,24 @@ namespace CS_WebAPI.Controllers
 
                 using (var stream = new FileStream(filePath, FileMode.Open))
                 {
-                    _bondOperations.ImportDataFromCsv(stream);
+                    await _bondOperations.ImportDataFromCsv(stream);
                 }
 
                 return Ok("File processed successfully.");
             }
             catch (Exception ex)
             {
-                // Log the error (optional)
-                // _logger.LogError(ex, "Error occurred while processing the file");
-
                 return StatusCode(500, $"Internal server error: {ex.Message}");
             }
         }
 
 
         [HttpDelete("{id}")]
-        public IActionResult DeleteBond(int id)
+        public async Task<IActionResult> DeleteBond(int id)
         {
             try
             {
-                _bondOperations.DeleteBondData(id);
+                await _bondOperations.DeleteBondData(id);
                 return Ok(new { message = "Bond successfully marked as inactive." });
             }
             catch (Exception ex)
@@ -78,7 +75,7 @@ namespace CS_WebAPI.Controllers
         }
 
         [HttpPut("edit")]
-        public IActionResult UpdateBond([FromBody] EditBondModel bond)
+        public async Task<IActionResult> UpdateBond([FromBody] EditBondModel bond)
         {
             if (bond == null || bond.SecurityID <= 0)
             {
@@ -87,8 +84,8 @@ namespace CS_WebAPI.Controllers
 
             try
             {
-                _bondOperations.UpdateBondData(bond);
-                return Ok(new { message = "Bond data updated successfully." });
+                string msg = await _bondOperations.UpdateBondData(bond);
+                return Ok(new { message = msg });
             }
             catch (Exception ex)
             {
@@ -98,11 +95,11 @@ namespace CS_WebAPI.Controllers
 
 
         [HttpGet]
-        public IActionResult GetEditBondsData()
+        public async Task<IActionResult> GetEditBondsData()
         {
             try
             {
-                var bonds = _bondOperations.GetBondsData(); // Call the method to get bond data
+                var bonds = await _bondOperations.GetBondsData(); // Call the method to get bond data
                 if (bonds == null || !bonds.Any())
                 {
                     return NotFound(new { message = "No bond data found." });
